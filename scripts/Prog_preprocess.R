@@ -337,7 +337,9 @@ pset_ann <- data.frame(sampleID = c(ccle_ann$sampleid,
                        lineage = c(ccle_ann$mod_tissueid,
                                    gdsc_ann$mod_tissueid,
                                    nci_ann$mod_tissueid),
-                       subtype = "NA",
+                       subtype = c(ccle_ann$cellosaurus.cellosaurus.disease,
+                                   gdsc_ann$cellosaurus.cellosaurus.disease,
+                                   nci_ann$cellosaurus.cellosaurus.disease),
                        Primary.Metastasis = "NA",
                        type = "CL",
                        Type = c(rep("CCLE", length(ccle_ann$sampleid)),
@@ -389,4 +391,7 @@ dat <- list(TCGA_mat = TCGA_mat_sts,
             pset_mat = pset_mat_sts)
 
 qsave(dat, file= file.path(dir_output, "PGx_gse_rna_sts.qs"))
+
+# Note
+# sub-type information for cell line data was added. 
 

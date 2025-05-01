@@ -221,7 +221,6 @@ dat <- list(TCGA_mat = TCGA_mat,
             pset_ann = pset_ann,
             pset_mat = pset_mat)
 
-file.path(dir_input, "PGx_corrected_gse_rna_sts.qs")
 qsave(dat, file= file.path(dir_input, "PGx_corrected_gse_rna_sts.qs"))
 
 # Note
