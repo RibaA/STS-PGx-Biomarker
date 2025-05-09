@@ -705,3 +705,143 @@ Celligner_alignment_plot_study <- function(aligned_data, org_dat, after_plot) {
   
 }
 
+################################################################################
+# figure: post-hoc analysis (correlation)
+################################################################################
+# pairwise correlation between tumor and CL (uncorrected data)
+calc_uncorrected_tumor_CL_correlation <- function(TCGA_mat, pset_mat) {
+  
+  uncorrected_tumor_CL_cor <- cor(t(TCGA_mat), t(pset_mat), use='pairwise')
+  
+  return(uncorrected_tumor_CL_cor)
+}
+
+
+# pairwise correlation between tumor and CL (corrected data)
+calc_corrected_tumor_CL_correlation <- function(alignment) {
+  
+  alignment <- cbind.data.frame(`sampleID` = alignment$sampleID,
+                                `type` = alignment$type,
+                                `lineage` = alignment$lineage,
+                                t(as.matrix(Seurat::GetAssayData(alignment))))
+  
+  TCGA_mat <- alignment[alignment$type == "tumor", -c(1,2,3)]
+  pset_mat <- alignment[alignment$type == "CL", -c(1,2,3)]
+  
+  corrected_tumor_CL_cor <- cor(t(TCGA_mat), t(pset_mat), use='pairwise')
+  
+  return(corrected_tumor_CL_cor)
+}
+
+# create distance function (aligned data)
+cell_line_tumor_distance_distribution <- function(alignment, tumor_CL_cor, name_fig, dir_output) {
+  
+  alignment <- cbind.data.frame(`sampleID` = alignment$sampleID,
+                                `type` = alignment$type,
+                                `lineage` = alignment$lineage,
+                                t(as.matrix(Seurat::GetAssayData(alignment))))
+  rownames(alignment) <- NULL
+  alignment$compare_types <- alignment$lineage
+  
+  common_cancer_types <- intersect(dplyr::filter(alignment, type=='tumor')$compare_types, 
+                                   dplyr::filter(alignment, type=='CL')$compare_types)
+  
+  tumor_names <- character()
+  CL_names <- character()
+  dist_list <- numeric()
+  tissue_types <- character()
+  for(cancer in common_cancer_types) {
+    cur_tumors <- dplyr::filter(alignment, type=='tumor' & compare_types==cancer)$sampleID
+    cur_CLs <- dplyr::filter(alignment, type=='CL' & compare_types==cancer)$sampleID
+    cur_dist <- reshape2::melt(as.matrix(tumor_CL_cor[cur_tumors, cur_CLs]))
+    tumor_names <- c(tumor_names, as.character(cur_dist$Var1))
+    CL_names <- c(CL_names, as.character(cur_dist$Var2))
+    dist_list <- c(dist_list, cur_dist$value)
+    tissue_types <- c(tissue_types, rep(cancer, nrow(cur_dist)))
+    
+  }
+  
+  dist_df <- cbind.data.frame(tumor_names, CL_names, dist_list, tissue_types)
+  dist_df$tissue_types <- gsub("_", " ", dist_df$tissue_types)
+  mean_dist <- aggregate(dist_df$dist_list, list(dist_df$tissue_types), 
+                         FUN = quantile, probs = 0.25) %>% dplyr::arrange(desc(x))
+  
+  mean_dist$Group.1 <- rev(mean_dist$Group.1)
+  dist_df$tissue_types <- factor(dist_df$tissue_types) # levels = mean_dist$Group.1
+  
+  tumor_dist_spread <- ggplot2::ggplot(dplyr::filter(dist_df, tissue_types != 'all'),
+                                       ggplot2::aes(x = dist_list, y = tissue_types, fill = tissue_types)) +
+    ggridges::geom_density_ridges(alpha=0.8)+ 
+    ggplot2::scale_fill_manual(values = c('Soft Tissue' = "#6a51a3")) + 
+    ggridges::theme_ridges() +
+    ggplot2::theme_classic() +
+    ggplot2::theme(legend.position = "none",
+                   text=ggplot2::element_text(size=10),
+                   axis.text = ggplot2::element_text(size=10),
+                   axis.title = ggplot2::element_text(size=8)) +
+    ggplot2::xlab("correlation between cell lines and tumors") +
+    ggplot2::ylab('') +
+    ggplot2::xlim(0.4, 1)
+  
+  ggsave(paste(paste(dir_output, name_fig, sep="") ,".pdf" , sep=""), 
+         width = 3, height = 2.5)
+  
+}
+
+
+# plot distribution (uncorrected data)
+plot_uncorrected_distribution_of_CL_tumor_distances <- function(uncorrected_tumor_CL_cor, alignment, name_fig, dir_output) {
+  
+  alignment <- cbind.data.frame(`sampleID` = alignment$sampleID,
+                                `type` = alignment$type,
+                                `lineage` = alignment$lineage,
+                                t(as.matrix(Seurat::GetAssayData(alignment))))
+  rownames(alignment) <- NULL
+  
+  alignment$compare_types <- alignment$lineage
+  
+  common_cancer_types <- intersect(dplyr::filter(alignment, type=='tumor')$compare_types, 
+                                   dplyr::filter(alignment, type=='CL')$compare_types)
+  
+  tumor_names <- character()
+  CL_names <- character()
+  dist_list <- numeric()
+  tissue_types <- character()
+  for(cancer in common_cancer_types) {
+    cur_tumors <- dplyr::filter(alignment, type=='tumor' & compare_types==cancer)$sampleID
+    cur_CLs <- dplyr::filter(alignment, type=='CL' & compare_types==cancer)$sampleID
+    cur_dist <- reshape2::melt(as.matrix(uncorrected_tumor_CL_cor[cur_tumors, cur_CLs]))
+    tumor_names <- c(tumor_names, as.character(cur_dist$Var1))
+    CL_names <- c(CL_names, as.character(cur_dist$Var2))
+    dist_list <- c(dist_list, cur_dist$value)
+    tissue_types <- c(tissue_types, rep(cancer, nrow(cur_dist)))
+    
+  }
+  
+  dist_df <- cbind.data.frame(tumor_names, CL_names, dist_list, tissue_types)
+  dist_df$tissue_types <- gsub("_", " ", dist_df$tissue_types)
+  
+  mean_dist <- aggregate(dist_df$dist_list, list(dist_df$tissue_types), 
+                         FUN = quantile, probs = 0.25) %>% dplyr::arrange(desc(x))
+  
+  mean_dist$Group.1 <- rev(mean_dist$Group.1)
+  dist_df$tissue_types <- as.factor(dist_df$tissue_types)
+  
+  ggplot2::ggplot(dplyr::filter(dist_df, tissue_types != 'all'),
+                  ggplot2::aes(x = dist_list, y = tissue_types, fill = tissue_types)) + 
+    ggridges::geom_density_ridges(alpha=0.8) + 
+    ggplot2::scale_fill_manual(values = c('Soft Tissue' = "#6a51a3")) + 
+    ggridges::theme_ridges() + 
+    ggplot2::theme_classic() +
+    ggplot2::theme(legend.position = "none",
+                   text=ggplot2::element_text(size=10),
+                   axis.text = ggplot2::element_text(size=10),
+                   axis.title = ggplot2::element_text(size=8)) +
+    ggplot2::xlab("correlation between cell lines and tumors") + 
+    ggplot2::ylab('') +
+    ggplot2::xlim(0.4, 1)
+  
+  ggsave(paste(paste(dir_output, name_fig, sep="") ,".pdf" , sep=""), 
+         width = 3, height = 2.5)
+  
+}
