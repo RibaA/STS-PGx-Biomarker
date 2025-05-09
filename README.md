@@ -17,7 +17,7 @@ STS-PGx-Biomarker aims to:
 
 🧬 Molecular profiles and drug sensitivity data – available at [ORCESTRA](https://www.orcestra.ca/pset) and [PharmacoGx R package](https://www.bioconductor.org/packages/release/bioc/html/PharmacoGx.html)
 
-🧬 Tumor patient data – available at TBD
+🧫 Tumor patient data – Available at TBD
 
 ## 📁 Repository Structure
 
