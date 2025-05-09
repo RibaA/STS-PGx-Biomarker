@@ -1,6 +1,6 @@
 # STS-PGx-Biomarker
 
-# Biomarker Discovery in Soft Tissue Sarcoma (STS) Using Pharmacogenomics Data
+# Biomarker Discovery in Soft Tissue Sarcoma Using Pharmacogenomics Data
 
 This repository supports a project focused on identifying predictive biomarkers in soft tissue sarcoma (STS) through the integration of pharmacogenomics data including cell line and tumor patient and computational approaches. The goal is to better understand drug response mechanisms and identify candidate genes or signatures relevant for STS treatment.
 
@@ -23,7 +23,7 @@ STS-PGx-Biomarker aims to:
 
 ```plaintext
 
-IO_signature_bias/
+STS-PGx-Biomarker/
 ├── 📁 data/       – Selected and curated cell line and tumor patient datasets
 ├── 📁 result/     – Analysis results and outputs
 ├── 📁 scripts/    – Workflows, processing scripts, and usage examples
