@@ -8,6 +8,8 @@ library(data.table)
 library(magrittr)
 library(corrplot)
 library(ggplot2)
+library(Hmisc)
+library(paletteer)
 
 ##################################################################
 ## define function
@@ -23,30 +25,46 @@ flattenCorrMatrix <- function(cormat, pmat) {
   )
 }
 
+
+##################################################################
+## setup directory
+##################################################################
+source("/home/bioinf/bhklab/farnoosh/STS-PGx-Biomarker/scripts/Prog_preprocess.R")
+
+dir_data <- '/home/bioinf/bhklab/farnoosh/STS-PGx-Biomarker/data'
+dir <- '/home/bioinf/bhklab/farnoosh/STS-PGx-Biomarker/result/drug/'
+dir_output <- '/home/bioinf/bhklab/farnoosh/STS-PGx-Biomarker/result/MOA'
+
 #########################################################################################################################
 #########################################################################################################################
 ########################################## Load Gene Drug response (AAC) Association ####################################
 #########################################################################################################################
 #########################################################################################################################
-## class of drugs
-load("/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Data/GDSC.RData")
-dat_drug <- drugInfo(dat)
+dat <- qread(file = file.path(dir_input, "sarcsets.qs"))
+names(dat) <- c("CCLE", "CTRP", "gCSI",  "GDSCv2", "GDSCv1", "NCI60", "PRISM", "NCI")
 
-## univariable results: STS 
-dat <- qread("/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/gene_drug_assoc_sts_late_integrated_celligner_lm_7pcs.qs")
+for(i in 1:length(dat)){
+  dat[[i]] <- updateObject(dat[[i]])
+}
+
+## class of drugs
+dat_drug  <- drugInfo(dat$GDSCv2)
+
+## meta association result
+dat <- qread(file.path(dir, "gene_drug_assoc_sts_meta.qs"))
 dat_drug <- dat_drug[rownames(dat_drug) %in% unique(dat$drug), ]
 
 ## get the class of drugs
-dat_drug$TARGET_PATHWAY <- ifelse(dat_drug$TARGET_PATHWAY %in% c("Other, kinases", "RTK signaling///Other, kinases", "Other"), 
+dat_drug$TARGET_PATHWAY <- ifelse(dat_drug$TARGET_PATHWAY %in% c("Other, kinases", "Other"), 
                                   "Other", dat_drug$TARGET_PATHWAY)
 
 dat_drug$TARGET_PATHWAY <- ifelse(dat_drug$TARGET_PATHWAY %in% c("PI3K/MTOR signaling"), 
                                   "PI3K-MTOR signaling", dat_drug$TARGET_PATHWAY)
-dat_drug$TARGET_PATHWAY <- ifelse(dat_drug$TARGET_PATHWAY %in% c("RTK signaling///IGF1R signaling"), 
-                                  "RTK signaling-IGF1R signaling", dat_drug$TARGET_PATHWAY)
-dat_drug$TARGET_PATHWAY <- ifelse(dat_drug$TARGET_PATHWAY %in% c("RTK signaling///EGFR signalin"), 
-                                  "RTK signaling-EGFR signalin", dat_drug$TARGET_PATHWAY)
-
+dat_drug$TARGET_PATHWAY <- ifelse(dat_drug$TARGET_PATHWAY %in% c("RTK signaling",
+                                                                 "RTK signaling///EGFR signaling", 
+                                                                 "RTK signaling///IGF1R signaling",
+                                                                 "RTK signaling///Other, kinases"), 
+                                  "RTK signaling", dat_drug$TARGET_PATHWAY)
 
 target_pathway <- unique(dat_drug$TARGET_PATHWAY)
 freq_target_pathway <- lapply(1:length(target_pathway), function(k){
@@ -58,6 +76,8 @@ freq_target_pathway <- lapply(1:length(target_pathway), function(k){
 
 freq_target_pathway  <- do.call(rbind, freq_target_pathway)
 freq_target_pathway <- freq_target_pathway[order(freq_target_pathway$freq, decreasing = TRUE), ]
+freq_target_pathway <- freq_target_pathway[freq_target_pathway$target_pathway != "Other", ]
+
 freq_target_pathway_included <- freq_target_pathway[freq_target_pathway$freq >= 2, ]
 target_pathway_included <- freq_target_pathway_included$target_pathway
 
@@ -69,11 +89,9 @@ dat_drug_class <- lapply(1:length(target_pathway_included), function(k){
 
 names(dat_drug_class) <- target_pathway_included
 
-#########################################################################################################################
-#########################################################################################################################
-#########################################  Pearson similarity metric  ###################################################
-#########################################################################################################################
-#########################################################################################################################
+################################################################################
+## Pearson similarity metric  
+################################################################################
 
 cor_res <- lapply(1:length(dat_drug_class), function(k){
   
@@ -81,7 +99,7 @@ cor_res <- lapply(1:length(dat_drug_class), function(k){
   
   sub_res_matrix <- lapply(1:length(dat_drug_class[[k]]), function(j){
     
-    sub_res[sub_res$drug == dat_drug_class[[k]][j], "Coef"]
+    sub_res[sub_res$drug == dat_drug_class[[k]][j], "r"]
     
   })
   
@@ -95,26 +113,21 @@ cor_res <- lapply(1:length(dat_drug_class), function(k){
 })
 
 cor_res <- do.call(rbind, cor_res)
+write.csv(cor_res, file=file.path(dir_output, "cor_pcl.csv"), row.names = FALSE)  
 
-write.csv(cor_res, file="/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/cor_pcl_lm.csv")
-
+################################################################################
 ## box plot for all the pharmacological classes
+################################################################################
 
-cor_res <- read.csv("/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/cor_pcl_lm.csv")
-#cor_res$target_pathway <- ifelse(cor_res$target_pathway %in% c("Other, kinases", "RTK signaling///Other, kinases", "Other"), "Other", cor_res$target_pathway)
-
-#cor_res$label <- ifelse(cor_res$target_pathway %in% c("Other, kinases", "Other"), 0, 1)
-#cor_res <- cor_res[cor_res$label ==1, ]
-
-jpeg(file="/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/boxplot_lm.jpg", 
-     width = 500, height = 500, res = 150)
+pdf(file= file.path(dir_output, "boxplot_pcl.pdf"), 
+     width = 4, height = 4)
 
 p <- ggplot(cor_res, aes(x=reorder(target_pathway, -cor), y=cor)) + 
-  geom_boxplot(width = 0.5, fill= "#F4E7C5FF", color = "#78847FFF") +
+  geom_boxplot(width = 0.5, fill= "#D8D8D8FF", color = "#181830FF") +
   coord_flip() + 
   ylim(c(-0.5, 1)) +
   xlab("") +
-  ylab("Pearson correlation \n (predictive value)") +
+  ylab("predictive correlation") +
   theme(axis.text.x=element_text(size=8),
         axis.title=element_text(size=9),
         axis.text.y=element_text(size=8),
@@ -132,7 +145,9 @@ p
 
 dev.off()
 
+################################################################################
 ## upper triangles
+################################################################################
 
 for(k in 1:length(dat_drug_class)){
   
@@ -142,7 +157,7 @@ for(k in 1:length(dat_drug_class)){
   
   sub_res_matrix <- lapply(1:length(dat_drug_class[[k]]), function(j){
     
-    sub_res[sub_res$drug == dat_drug_class[[k]][j], "Coef"]
+    sub_res[sub_res$drug == dat_drug_class[[k]][j], "r"]
     
   })
   
@@ -154,58 +169,47 @@ for(k in 1:length(dat_drug_class)){
     
   }
   colnames(sub_res_matrix) <- dat_drug_class[[k]]
-  # for RTK pathway
-  
-  #sub_res_matrix <- sub_res_matrix[, colnames(sub_res_matrix) %in% c("Axitinib", "Linifanib", "Quizartinib")]
-  
+ 
   res <- cor(sub_res_matrix)
-  
- # if(k == 2){ names(dat_drug_class)[k] <- "PI3K_MTOR signaling"   } 
- #  if(k == 5){ names(dat_drug_class)[k] <- "Other_kinases"   }  
- # if(k == 13){ names(dat_drug_class)[k] <- "RTK signaling Other kinases"   } 
-  
-  jpeg(file=paste("/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/PCL/",
-                  paste(names(dat_drug_class)[k], ".jpg", sep=""), sep=""),
-       width = 650, height = 650, res=150)
+
+  pdf(file=paste(dir_output, 'corPlot',
+                  paste(names(dat_drug_class)[k], ".pdf", sep=""), sep="/"),
+       width = 6, height = 6)
   
   p <- corrplot(res, type = "upper", order = "hclust", 
            tl.col = "black", tl.srt = 45, tl.cex = 0.8)
-  p
+  print(p)
   
   dev.off()
   
 }
 
 ##########################################################
-## all 80 drugs
+## all drugs with significant meta-association results
 ##########################################################
 
-dat <- qread("/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/gene_drug_assoc_sts_late_integrated_celligner_lm_7pcs.qs")
 sig <- dat[dat$padj < 0.05, ]
 dat_drug <- dat_drug[rownames(dat_drug) %in% unique(sig$drug), ]
 
-drugs <- unique(sig$drug)
-res <- lapply(1:length(drugs), function(k){
+drug <- unique(sig$drug)
+res <- lapply(1:length(drug), function(k){
   
-  df <- dat[dat$drug == drugs[k], "Coef"]
-  #df <- ifelse(df > 1, 1, df)
-  #df <- ifelse(df < (-1), -1, df)
+  df <- dat[dat$drug == drug[k], "r"]
   df
   
 })
 
 res <- do.call(cbind, res)
-colnames(res) <- drugs
-
+colnames(res) <- drug
 cor_res <- cor(res)
 
-jpeg(file=paste("/home/bioinf/bhklab/farnoosh/SARC/PGx_sts/Result/drug/PCL/",
-                paste("cor_all_lm", ".jpg", sep=""), sep=""),
-     width = 1300, height = 1300, res=150)
+pdf(file=paste(dir_output,
+                paste("cor_pcl", ".pdf", sep=""), sep="/"),
+     width = 12, height = 12)
 
 p <- corrplot(cor_res, type = "upper", order = "hclust", 
               tl.col = "black", tl.srt = 90, tl.cex = 0.8)
-p
+print(p)
 
 dev.off()
 
