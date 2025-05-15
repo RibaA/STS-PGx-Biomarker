@@ -159,7 +159,7 @@ dat_ann <- dat$pset_ann
 group <- dat_ann$Type
 group <- factor(group)
 
-cols <- c("#1a9850", "#9970ab", "#4575b4")
+cols <- c("#1b7837", "#542788", "#bf812d")
 
 pca_results <- prcomp(dat_mat, scale = TRUE)
 var_res <- pca_results$sdev^2 / sum(pca_results$sdev^2)
@@ -189,7 +189,7 @@ dat_mat <- t(combat_mat)
 
 ## regenerate figures after correction
 group <- factor(dat_ann$Type)
-cols <- c("#1a9850", "#9970ab", "#4575b4")
+cols <- c("#1b7837", "#542788", "#bf812d")
 
 pca_results <- prcomp(dat_mat, scale = TRUE)
 var_res <- pca_results$sdev^2 / sum(pca_results$sdev^2)
